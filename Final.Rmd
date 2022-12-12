@@ -1,0 +1,300 @@
+---
+title: "Final Project"
+author: "Xinpeng Hua"
+date: "2022-12-10"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+  fig_caption: yes
+  latex_engine: xelatex
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(hrbrthemes)
+library(viridisLite)
+library(viridis)
+library(dplyr)
+library(ggridges)
+library(corrplot)
+library(car)
+library(rworldmap)
+library(sjmisc)
+library(sjPlot)
+library(lme4)
+library(glmmTMB)
+library(lme4, arm)
+library(lattice)
+library(rstanarm)
+library(kableExtra)
+library(gridExtra)
+library(cowplot)
+library(reshape)
+library(PerformanceAnalytics)
+library(ggpubr)
+library(jtools)
+library(merTools)
+library(latticeExtra)
+```
+## Abstract
+
+This project is to explore the relationship between happiness and some basic indexes, which is based on the World Happiness Report from 2015 to 2021. There are several variables which may influence the happiness score and I choose to clean the data sets and create EDA and the best multilevel model with the group level `Region` for this data. This result indicates the relationship between happiness score and different variables. The report can be divided into 4 parts: Introduction, Method, Result and Discussiion.
+
+## Introduction
+The happiness is vital for the human. Throughout history, wise rulers have wanted to create a utopia, which means that the happiness score is close to the full score.The social order is unprecedentedly perfect, and there is no evil in this country. But this is impossible. There is always a dark side in society, and the happiness score will not tend to be perfect. It is obvious that every country, every region has different level of happiness. And there are 6 potential factor:`GDP`,`social support`,`life expectancy`,
+`freedom`,`generosity`,`corruption`. And this report will divide countries in the world into 10 regions: `Australia and New Zealand`,`Central and Eastern Europe`, `Eastern Asia Latin America and Caribbean`, `Middle East and Northern Africa`, `North America`, `Southeastern Asia`, `Southern Asia`, `Sub-Saharan Africa Western Europe`. In our common sense, we always think that more money, more freedom, more help, less corruption and so on can make people happier. However, I am interested in this point, and I want to figure out how they influence and the difference of each region.   
+
+
+
+## Method
+### Data preprocessing
+I select the happiness report from 2015 to 2019. Actually I want to use the latest report to 2022, but I found that the 2022 data set has some problem which is not easy to solve, and the data may not real, so I change it to 2021. There are 7 CSV documents totally for me to combine them to one data set. Through the data cleaning, I found that the the categories of regions of the reports are different from 2015 to 2019. And I decide to use 2015 categories of regions for unifying the standard. 
+
+```{r include=FALSE}
+#data clean
+library(dplyr)
+
+#read data and choose the needed column
+happiness_2015 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2015.csv", header = T)
+happiness_2015 <- happiness_2015[,c(1,2,4,6:11)]
+happiness_2016 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2016.csv", header = T)
+happiness_2016 <- happiness_2016[,c(1,2,4,7:12)]
+happiness_2017 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2017.csv", header = T)
+happiness_2017 <- happiness_2017[,c(1,3,6:11)]
+happiness_2018 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2018.csv", header = T)
+happiness_2018 <- happiness_2018[,c(2:9)]
+happiness_2019 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2019.csv", header = T)
+happiness_2019 <- happiness_2019[,c(2:9)]
+happiness_2020 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2020.csv", header = T)
+happiness_2020 <- happiness_2020[,c(1:3,14:19)]
+happiness_2021 <- read.csv("C:/Users/HXP/Desktop/Final MA678/2021.csv", header = T)
+happiness_2021 <- happiness_2021[,c(1:3,14:19)]
+
+
+#inner join the new variable region
+region_indicator <- happiness_2015[,1:2]
+happiness_2017 <- inner_join(region_indicator, happiness_2017, by = "Country")
+colnames(happiness_2018)[1] <- "Country"
+happiness_2018 <- inner_join(region_indicator, happiness_2018, by = "Country")
+colnames(happiness_2019)[1] <- "Country"
+happiness_2019 <- inner_join(region_indicator, happiness_2019, by = "Country")
+colnames(happiness_2020)[1] <- "Country"
+happiness_2020 <- inner_join(region_indicator, happiness_2020, by = "Country")
+colnames(happiness_2021)[1] <- "Country"
+happiness_2021 <- inner_join(region_indicator, happiness_2021, by = "Country")
+
+
+
+#year adding
+happiness_2015 <- cbind(year = 2015,happiness_2015)
+happiness_2016 <- cbind(year = 2016,happiness_2016)
+happiness_2017 <- cbind(year = 2017,happiness_2017)
+happiness_2018 <- cbind(year = 2018,happiness_2018)
+happiness_2019 <- cbind(year = 2019,happiness_2019)
+happiness_2020 <- cbind(year = 2020,happiness_2020)
+happiness_2021 <- cbind(year = 2021,happiness_2021)
+
+#change the order
+happiness_2015 <- happiness_2015[,c(1:8,10,9)]
+happiness_2016 <- happiness_2016[,c(1:8,10,9)]
+#delete the useless column
+happiness_2020 <- happiness_2020[,-4]
+happiness_2021 <- happiness_2021[,-4]
+
+```
+
+
+```{r include=FALSE}
+#uniform column name
+colnames(happiness_2015) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+colnames(happiness_2016) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+colnames(happiness_2017) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+colnames(happiness_2018) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+colnames(happiness_2019) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+colnames(happiness_2020) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+colnames(happiness_2021) <- c("year", "Country", "Region", "score", "GDP", "social support", 
+                              "life expectancy", "freedom","generosity" , "corruption")
+
+#conbime them
+happiness <- rbind(happiness_2015, happiness_2016,happiness_2017,happiness_2018,happiness_2019
+                   ,happiness_2020,happiness_2021)
+#adjust NA
+happiness$corruption <- as.numeric(happiness$corruption)
+happiness <- na.omit(happiness)
+
+```
+
+\newpage
+### Exploratory Data Analysis
+
+
+
+
+```{r, echo = F, fig.width=7, fig.height=7, fig.cap="Compare the distributions of happiness score"}
+e1<-ggplot(happiness, aes(x = score, y = Region, fill = Region, color = Region)) +
+   geom_jitter(width = .3, alpha = .5)+
+   theme_bw() +theme(legend.position="none",
+        
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+
+  theme(legend.position = "none")+theme(axis.title.y = element_blank(),axis.text=element_text(size=6))+
+  theme(axis.title.x = element_text(hjust = "0.5"))
+
+e2<-ggplot(happiness, aes(x = score, y = Region, fill = Region)) +
+   geom_density_ridges_gradient(scale = 2, rel_min_height = 0.001) +theme_bw() +theme(legend.position="none",
+        
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+
+  theme(legend.position = "none")+theme(axis.title.y = element_blank(),axis.text=element_text(size=6))+
+  theme(axis.title.x = element_text(hjust = "0.5"))
+
+e3<-ggplot(happiness,aes(x = score, y = Region, fill = Region)) + 
+  geom_boxplot() +theme_bw() +theme(legend.position="none",
+       
+        panel.border = element_blank(),
+        axis.line = element_line(colour = "black"))+theme(axis.title.y = element_blank(),axis.text=element_text(size=6))
+
+ggarrange(e1,e2,e3,ncol=1,nrow=3)
+```
+
+
+
+
+As during these years, there is little difference between each year. So I create the Figure 1 based on the different regions of whole period. Through the three basic plots, it is clear that Australia and New Zealand region always has high score during this period. And the main point is that these two areas are developed, which means their people get good quality of life. It is true that some developed countries have low happiness score like Japan, so our opinion is based on the common condition. Besides, western Europe and North America also get the high score relatively. However, Sub-Saharan Africa have the lowest score during the years relatively. From my perspective, the wars made these area lose the peace and people lost their homes so that they may get poor. Middle East and Northern Africa and Southeastern Asia have the high level of dispersion. Maybe the reason is that these regions include the countries which have large wealth gap between rich and poor.
+
+
+
+
+
+```{r echo = FALSE,  fig.width=10, fig.height=12, fig.cap="Relationship between happiness scores and different variables"}
+p1<-ggplot(happiness,aes(x = year, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+p2<-ggplot(happiness,aes(x = GDP, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+p3<-ggplot(happiness,aes(x = `social support`, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+p4<-ggplot(happiness,aes(x = `life expectancy`, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+p5<-ggplot(happiness,aes(x = freedom, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+p6<-ggplot(happiness,aes(x = generosity, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+p7<-ggplot(happiness,aes(x = corruption, y = score, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+
+ggarrange(p1,p2,p3,p4,p5,p6,p7,ncol=2,nrow=4,labels=c("(A)vs year","(B)vs GDP","(C)vs social support",
+                                                      "(D)vs life expectancy","(E)vs freedom","(F)vs generosity","(G)vs corruption"))
+
+
+
+```
+
+And there are more plots of relationship between happiness scores and different variables. I create the Figure 2 to explore it. Firstly, plot A reveals that the year-to-year changes in scores for different regions are small. This is why we can use the data of different years before to create the EDA basically. Plot B, Plot C and Plot D all illustrate the positive relationship between scores and the variables, GDP, social support, life expectancy on the whole. But Plot E, F, G shows that more regions like north America and eastern Asia have negative relationship between scores and freedom, generosity, corruption.
+
+
+```{r echo = FALSE,  fig.width=10, fig.height=3, fig.cap="Relationship between freedom and corruption and generosity"}
+f1<-ggplot(happiness,aes(x = corruption, y = freedom, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+f2<-ggplot(happiness,aes(x = generosity, y = freedom, fill = Region, color = Region))+geom_point(alpha=0.2)+geom_smooth(method="lm",se = F)
+ggarrange(f1,f2)
+```
+
+Therefore, I create the Figure 3 to try to get the relationship between corruption and generosity with freedom. It turns out that even half regions have negative relationship between freedom and generosity. It is a really special find for me, in my opinion, this is because the more freedom people of those regions have, the more things they can do, which means they can do the good things, but they can do bad things either so that they lose the generosity.
+
+
+### Model Fitting
+
+```{r echo=FALSE, fig.height=5, fig.width=7, fig.cap="Correlation Matrix"}
+chart.Correlation(happiness[,4:10], histogram=TRUE, pch=10)
+```
+
+I try to find the correlations between the variables so that I create the Figure 4. It is obvious that all the variables have good correlation with happiness score. So firstly I choose all the variables to fit the multilevel model. Firstly I assume the region effect all the variables. But the model `fit` I fit was not good as the p-value of generosity or corruption was too large which means the model is not fitted well. Therefore, I choose to delete the `corruption` and `Region` cannot influence `generosity`. And then I found that the model `fit2` is fitted well, all the p-values of the coefficients are less than 0.05.
+
+```{r include =  T,eval=FALSE}
+fit <- lmer(score ~ GDP + `social support` + `life expectancy` + freedom + generosity + 
+corruption + (1 + GDP + `social support` + `life expectancy` + freedom + generosity+
+                corruption| Region), data = happiness)
+
+fit2 <- lmer(score ~ GDP + `social support` + `life expectancy` + freedom + generosity+ 
+(1 + GDP + `social support` + `life expectancy` + freedom | Region), data = happiness)
+
+```
+|                |Estimate     |Std. Error     |t value     |Pr(>&#124;t&#124;) |
+|:---:           |:---:        |:---:          |:---:       |:---:              |
+|(Intercept)     |2.4992       |0.2656         |9.408       |9.29e-05           |
+|GDP             |1.2892       |0.1398         |9.223       |2.96e-05           |
+|social support  |0.3211       |0.1207         |2.660       |0.031129           |
+|life expectancy |0.8440       |0.2340         |3.607       |0.007141           |
+|freedom         |1.5040       |0.3580         |4.201       |0.005853           |
+|generosity      |0.5256       |0.1519         |3.461       |0.000579           |
+
+
+
+
+
+## Result
+### Coefficient
+As a result, the formula for happiness scores is
+$$
+\begin{aligned}
+happiness score=2.4992+1.2892*GDP+0.3211*socialsupport\\+0.8440*lifeexpectancy
++1.5040*freedom+0.5256*generosity
+\end{aligned}
+$$
+And the following table is the summary of random effects.
+
+```{r echo=FALSE}
+fit2 <- lmer(score ~ GDP + `social support` + `life expectancy` + freedom + generosity+ 
+(1 + GDP + `social support` + `life expectancy` + freedom | Region), data = happiness)
+coef(fit2)
+```
+
+It is clear that the variables I choose from the data have positive relationship with the happiness score, and we can conclude that GDP and freedom influence the most for the happiness. It was also predictable. Because personal freedom and material needs are the two most important things for human beings. So they can affect people's happiness a lot. From the random effect table, there is only one negative number. It is the coefficient of social support in Latin America and Caribbean which is -0.2. Actually, it is hard to explain why this area have this phenomenon because the number is close to 0 which means the influence is little but exists. Besides, the life expectancy and freedom influence a lot for the Latin America and Caribbean. And for the eastern Asia, every variable influence the least relatively to the happiness score, that is possibly because of the culture of eastern Asia which decide the happiness score of the society. 
+
+### Checking
+
+Through Figure 5, I use the qqplot to check whether or not the model is fitted well. The qqplot shows that all the points basically form a straight line and are close to the fitting line, which means the model fit well as I predict.
+
+```{r echo=FALSE, fig.height=4, fig.width=6, fig.cap="qqplot"}
+fit2 <- lmer(score ~ GDP + `social support` + `life expectancy` + freedom + generosity+ 
+(1 + GDP + `social support` + `life expectancy` + freedom | Region), data = happiness)
+qqmath(fit2)
+```
+
+## Discussion
+In this report, I use the multilevel model to figure out the relationship between happiness scores and several factors as I mentioned before. The result is not beyond our prediction, all the variables have positive relationship with happiness score, which means that the effects of some of the factors that make people happier in our common sense are all positive. However, there are some limitations of the model. I deleted the `corruption` to make the model fit better. Actually, `corruption` should have some effects on scores. I am supposed to learn more models to fit it well without deleting a variable. And I ignored the little effect of the year on the score either, which may become the reason of deviation of model coefficient.
+
+
+
+
+## Reference
+[1] World Happiness Report. https://www.kaggle.com/datasets/mathurinache/world-happiness-report-20152021
+
+[2] Micheal, P. Chapter 18: Testing the Assumptions of Multilevel Models. https://ademos.people.uic.edu/
+Chapter18.html
+
+[3] ALEXANDRU CERNAT. Cross-national research using multilevel model in R.https://www.alexcernat.com/cross-national-research-using-multilevel-model-in-r/
+
+## Appendix
+```{R echo = FALSE, fig.width=10, fig.height=4, figure.cap="Happiness Score shown on the map"}
+map <- map_data("world")
+colnames(map)[5] <- "Country"
+m <- left_join(happiness, map, by = "Country")
+ggplot(m) +
+  geom_polygon(aes(x = long, y = lat, group = group, fill = score), color = "gray", size = 0.5) + 
+  coord_equal() +
+ 
+  ggtitle("Score Map") +xlab("longtitude") + ylab("latitude") +
+ 
+   labs(fill="Score") +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        plot.title = element_text(hjust = "0.5"))
+```
